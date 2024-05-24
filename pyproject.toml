@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "cellogpt"
 version = "0.1.0"
-description = ""
+description = "Automatic Cello Fingering using Sequence-to-Sequence Transformers"
 authors = ["Adrian del Ser <adrian.delser@gmail.com>"]
 readme = "README.md"
 
@@ -9,6 +9,9 @@ readme = "README.md"
 python = "^3.11"
 mlx = "^0.14.0"
 
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.29.4"
 
 [build-system]
 requires = ["poetry-core"]
