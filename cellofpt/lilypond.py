@@ -13,6 +13,8 @@ def generate_lilypond(notes, fingerings):
 
     for note, fingering in zip(notes, fingerings):
         pitch_name = note[:-1].lower()  # Extract the pitch name (c, d, e, f, etc.) and convert to lowercase
+        pitch_int = ord(pitch_name)
+
         octave = int(note[-1])  # Extract the octave number
 
         # Calculate the relative pitch based on the previous pitch
@@ -25,7 +27,7 @@ def generate_lilypond(notes, fingerings):
         lilypond_template += f"  {pitch}4-\\markup {{ \\finger {fingering} }}\n"
 
         # Update the previous pitch
-        previous_pitch = pitch
+        previous_pitch = pitch_int
 
     # Close the LilyPond notation block
     lilypond_template += "}\n"
