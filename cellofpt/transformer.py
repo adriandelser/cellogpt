@@ -17,7 +17,7 @@ n_embd = 16
 
 mx.random.seed(1337)
 
-# here are all the unique characters that occur in this text
+# here are all the unique notes that occur in this music
 notes = [chr(num%7+ord('A'))+str(math.floor(num/7)+2) for num in range(2,18)] #effectively chars
 fingerings:list = [0,1,3,4,0,1,3,4,0,1,2,4,0,1,2,4] #fingering for C major scale up to D natural on A string
 # create a mapping from characters to integers
@@ -185,8 +185,8 @@ class Block(nn.Module):
         x = x + self.ffwd(self.ln2(x))
         return x
 
-# super simple bigram model
-class BigramLanguageModel(nn.Module):
+# super simple model
+class MusicFingeringModel(nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -246,101 +246,58 @@ class BigramLanguageModel(nn.Module):
         return idx
 
 
+if __name__=='__main__':
+    train_batch = get_batch('train')[0] #0 for notes, 1 for fingerings  
+    print(f"{train_batch.shape=}")
 
-# print(get_batch('val'))
-train_batch = get_batch('train')[0] #0 for notes, 1 for fingerings  
-print(f"{train_batch.shape=}")
+    model = MusicFingeringModel()
+    def loss_fn(model, X, y:mx.array):
+        logits = model(X)
+        BT = logits.shape[0]
+        targets = y.reshape(BT)
+        loss = nn.losses.cross_entropy(logits, targets)
+        return mx.mean(loss) 
+  
+    # Create the gradient function
+    loss_and_grad_fn = nn.value_and_grad(model, loss_fn)
+    # # create a mlx optimizer
+    optimizer = mlx.optimizers.AdamW(learning_rate = learning_rate)
 
-model = BigramLanguageModel()
-def loss_fn(model, X, y:mx.array):
-    logits = model(X)
-    BT = logits.shape[0]
-    targets = y.reshape(BT)
-    loss = nn.losses.cross_entropy(logits, targets)
-    return mx.mean(loss) #do i need to take the mean?
-    return mx.mean(nn.losses.cross_entropy(model(X), y))
-# m = model.to(device)
+    for iter in range(max_iters):
+        # every once in a while evaluate the loss on train and val sets
+        if iter % eval_interval == 0:
+            model.freeze()
+            losses = estimate_loss()
+            print(f"step {iter}: train loss {losses['train'].item():.4f}, val loss {losses['val'].item():.4f}")
+            model.unfreeze()
 
-# # create a mlx optimizer
-# optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
-# Create the gradient function and the optimizer
-loss_and_grad_fn = nn.value_and_grad(model, loss_fn)
-optimizer = mlx.optimizers.AdamW(learning_rate = learning_rate)
+        # sample a batch of data
+        xb, yb = get_batch('train')
 
-for iter in range(max_iters):
+        # evaluate the loss
+        logits = model(xb)
 
-    # every once in a while evaluate the loss on train and val sets
-    if iter % eval_interval == 0:
-        model.freeze()
-        losses = estimate_loss()
-        print(f"step {iter}: train loss {losses['train'].item():.4f}, val loss {losses['val'].item():.4f}")
-        model.unfreeze()
+        loss, grads = loss_and_grad_fn(model, xb, yb)
+        # Update the model with the gradients. So far no computation has happened.
+        #NOTE I assume this does zero grad? Haven't seen any explicit zero gradding in the mlx docs. Need to make sure...
+        optimizer.update(model, grads) 
+        # Compute the new parameters but also the optimizer state.
+        mx.eval(model.parameters(), optimizer.state)
 
-    # sample a batch of data
-    xb, yb = get_batch('train')
+    # # generate from the model
+    model.freeze()
+    Xin = mx.arange(0,16,1)
+    print(Xin)
+    Xin = mx.expand_dims(Xin,axis=-1)
+    Xin = mx.random.randint(0,16,(5, block_size))
+    logits = model(Xin)
+    # print(logits)
+    input_notes = [iton[i.item()] for i in mx.flatten(Xin)]
+    print(f"{len(input_notes)=}")
+    fingerings = logits.argmax(axis=1).tolist()
+    print(f"Input notes:{input_notes}")
+    print(f"fingerings: {fingerings}")
 
-    # evaluate the loss
-    logits = model(xb)
-
-    loss, grads = loss_and_grad_fn(model, xb, yb)
-    # Update the model with the gradients. So far no computation has happened.
-    #NOTE I assume this does zero grad? Haven't seen any explicit zero gradding in the mlx docs. Need to make sure...
-    optimizer.update(model, grads) 
-    # Compute the new parameters but also the optimizer state.
-    mx.eval(model.parameters(), optimizer.state)
-
-# # generate from the model
-model.freeze()
-Xin = mx.arange(0,16,1)
-print(Xin)
-Xin = mx.expand_dims(Xin,axis=-1)
-Xin = mx.random.randint(0,16,(5, block_size))
-logits = model(Xin)
-# print(logits)
-input_notes = [iton[i.item()] for i in mx.flatten(Xin)]
-fingerings = logits.argmax(axis=1).tolist()
-print(f"Input notes:{input_notes}")
-print(f"fingerings: {fingerings}")
-
-
-#save to file
-def generate_lilypond(notes, fingerings):
-    # LilyPond header
-    lilypond_template = r"""
-\version "2.24.0"
-\relative c' {
-  \clef bass
-  \key c \major
-"""
-
-    previous_octave = 2  # Start relative to C2
-
-    for note, fingering in zip(notes, fingerings):
-        pitch_name = note[:-1].lower()  # Extract the pitch name (c, d, e, f, etc.) and convert to lowercase
-        current_octave = int(note[-1])  # Extract the octave number
-
-        # Determine the correct relative pitch
-        if current_octave > previous_octave:
-            pitch = pitch_name + "'" * (current_octave - previous_octave)
-        elif current_octave < previous_octave:
-            pitch = pitch_name + "," * (previous_octave - current_octave)
-        else:
-            pitch = pitch_name
-
-        lilypond_template += f"  {pitch}4-\\markup {{ \\finger {fingering} }}\n"
-
-        # Update the previous octave
-        previous_octave = current_octave
-
-    # Close the LilyPond notation block
-    lilypond_template += "}\n"
-    with open('output.ly', 'w') as file:
-        file.write(lilypond_template)
-
-    return lilypond_template
-
-# Example usage
-# notes = ['C2', 'D4', 'E2', 'F4']
-# fingerings = [1, 2, 3, 4]
-lilypond_output = generate_lilypond(input_notes, fingerings)
-print(lilypond_output)
+    #write to lilypond file
+    from lilypond import absolute_to_lilypond
+    lilypond_output = absolute_to_lilypond(input_notes, fingerings)
