@@ -7,9 +7,9 @@ from transformer import MusicFingeringModel, block_size
 
 #hyperparameters
 batch_size = 64 # how many independent sequences will we process in parallel?
-max_iters = 20
+max_iters = 200
 learning_rate = 1e-3
-eval_interval = 20
+eval_interval = 10
 eval_iters = 200
 vocab_size = 16 #16 possible notes
 
@@ -61,12 +61,18 @@ if __name__=='__main__':
     # # create a mlx optimizer
     optimizer = mlx.optimizers.AdamW(learning_rate = learning_rate)
 
+    train_losses = []
+    val_losses = []
     for iter in range(max_iters):
         # every once in a while evaluate the loss on train and val sets
         if iter % eval_interval == 0:
             model.freeze()
             losses = estimate_loss(model)
-            print(f"step {iter}: train loss {losses['train'].item():.4f}, val loss {losses['val'].item():.4f}")
+            train_loss = losses['train'].item()
+            val_loss = losses['val'].item()
+            train_losses.append(train_loss)
+            val_losses.append(val_loss)
+            print(f"step {iter}: train loss {train_loss:.4f}, val loss {val_loss:.4f}")
             model.unfreeze()
 
         # sample a batch of data
@@ -84,18 +90,11 @@ if __name__=='__main__':
     # # generate from the model
     # model.freeze()
     model.save_weights('weights.safetensors')
-    # Xin = mx.arange(0,16,1)
-    # print(Xin)
-    # Xin = mx.expand_dims(Xin,axis=-1)
-    # Xin = mx.random.randint(0,16,(5, block_size))
-    # logits = model(Xin)
-    # # print(logits)
-    # input_notes = [iton[i.item()] for i in mx.flatten(Xin)]
-    # print(f"{len(input_notes)=}")
-    # fingerings = logits.argmax(axis=1).tolist()
-    # print(f"Input notes:{input_notes}")
-    # print(f"fingerings: {fingerings}")
 
-    # #write to lilypond file
-    # from lilypond import absolute_to_lilypond
-    # lilypond_output = absolute_to_lilypond(input_notes, fingerings)
+    import matplotlib.pyplot as plt
+    plt.title("Training loss")
+    plt.ylabel("Loss")
+    plt.xlabel("iteration")
+    plt.plot(train_losses)
+    plt.show()
+    

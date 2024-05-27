@@ -103,7 +103,10 @@ run:
 
 inference:
 	poetry run python3 cellogpt/inference.py
-	lilypond music.ly
-	
+	lilypond -o output/music output/music.ly
+
 train:
 	poetry run python3 cellogpt/training.py
+
+lilypond:
+	lilypond -o output/music output/music.ly

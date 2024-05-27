@@ -17,17 +17,28 @@ Some references:
 
 
 
-## Project Plan (feasability unknown)
+## Project Plan
 
 ### Step 1: Overfitting a simple dataset 
-- I will generate pseudo-random notes in the C major scale spanning from the lowest note on the cello (C2) to the highest note on the A string playable in first position (D4). There are 16 notes in this range. The fingerings for these notes are known, thus we have an initial dataset to play with. **DONE**
-- For the transformer model, I will start with a 'note level' model (ie 'character level', without a note tokenizer (very much future work). The main difference with this transformer and an Large Language Model decoder-only tranformer is the presence of cross-attention due to the decoder, as well as allowing 'future' knowledge, ie. instead of cutting off the top triangle of the matrices involved in the attention dot-product, we allow knowledge of future notes. I will need to somehow embed the notes (equivalent to 'vocabulary' in text-based models) and attempt to overfit the simple dataset to see if the decoder obtains coherent results. **DONE**
+- I will generate pseudo-random notes in the C major scale spanning from the lowest note on the cello (C2) to the highest note on the A string playable in first position (D4). There are 16 notes in this range. The fingerings for these notes are known, thus we have an initial dataset to play with.
+- For the transformer model, I will start with a 'note level' model (ie 'character level', without a note tokenizer (very much future work). The main difference with this transformer and an Large Language Model decoder-only tranformer is the presence of cross-attention due to the decoder, as well as allowing 'future' knowledge, ie. instead of cutting off the top triangle of the matrices involved in the attention dot-product, we allow knowledge of future notes. I will need to somehow embed the notes (equivalent to 'vocabulary' in text-based models) and attempt to overfit the simple dataset to see if the decoder obtains coherent results.
 - I will try to achieve this locally on an M1 Max processor using mlx as the main array and deep learning library.
+
+
 
 ### Step 2: Expand vocabulary
 - Include all notes in the scale
 - Label some real pieces? I'll see what the existing research says.
 - Depends on how well step 1 goes :)
+
+## Results
+### Step 1 Progress
+- I have trained a decoder only transformer (normally used for large language models) to overfit basic fingerings. Say we have a context length of 8, a character level language model would be trained to predict characters 2 through 9 given characters 1 through 8. Instead of this, I have trained the model to predict the fingerings for notes 1 through 8 given the notes 1 through 8. The output logits will have shape (8,num_notes) (assuming we have a batch size of 1, and num_notes is equivalent to vocab size). In a large language model we would look at the last row of logits to find the predicted note by sampling from the probabilities. In this model, we use each row to predict the fingering for every note by finding the greatest logit (argmax). We could also sample from the probabilities but in general we don't want the chance of a wrong fingering being selected. 
+
+-Below I show 8 bars of random music in C major with its fingerings obtained through the overfitted model. We can also see the training loss as it goes to zero (as this model is very easy to overfit, since all notes only ever have one possible fingering in the training data and do not depend on other notes or fingerings).
+![Overfitted fingerings](./output/overfit_music.png)
+![Training loss for overfitted data](./output/train_loss_overfit.png)
+
 
 
 ## Contributing
