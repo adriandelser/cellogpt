@@ -1,3 +1,5 @@
+from data import ntof
+
 def absolute_to_lilypond(notes:list[str],fingerings):
     """
     Convert absolute music notes to LilyPond relative notation.
@@ -32,7 +34,16 @@ def absolute_to_lilypond(notes:list[str],fingerings):
         elif diff<-3:
             lilypond_note += ","*(abs(diff+4)//7+1)
         
-        lilypond_template += f"  {lilypond_note}4-\\markup {{ \\finger {fingering} }}\n"
+        lilypond_template += f"  {lilypond_note}4"
+        
+        # print(f"{type(fingering)=}")
+        if ntof[note] != fingering:
+            lilypond_template+="-\\tweak color #red "
+
+        #for fingerings above uncomment this line
+        # lilypond_template+= f"-{fingering}\n" #above
+        #for fingerings below uncomment this line
+        lilypond_template += f"-\\markup {{ \\finger {fingering} }}\n" #below
 
 
         prev_note=current_note
