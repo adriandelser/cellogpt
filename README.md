@@ -1,12 +1,13 @@
 
   
 # Cello Fingering Prediction with Sequence-to-sequence Transformers
+![Overfitted fingerings](./output/banner.png)
 
 ## Project Overview
 
 This project aims to generate fingerings for cello music (ie which fingers to use to play each note on the sheet music) using encoder-decoder transformers. The goal is to apply the architecture of sequence-to-sequence transformers, "translating" from music notes to fingerings instead of translating one language to another.
 **Note:** This project was motivated by not being able to find adequate fingerings for my sheet music, needing to watch slow motion video of online performances to decipher how to play certain sections. It is also a good opportunity to improve my knowledge of Apple's mlx library. 
-**Note:** This project is brand new (started 24/05/2024) and a work in progress. It is on github so I can keep track of my progress.
+**Note:** This project is new (started 24/05/2024) and a work in progress. It is on github to keep track of progress and for any suggestions from the community :) 
 
 ## Previous Work
 Previous research on this topic exists, mostly for piano music (the task of generating fingerings for piano music is referred to Automatic Piano Fingering, or APF). It has shown that sequence-to-sequence transformers (along with other learning-based methods) can be useful for this task. I haven't found databases for the cello yet, so this project is a personal challenge to see what can be achieved using resources available to me.
@@ -38,6 +39,16 @@ Some references:
 -Below I show 8 bars of random music in C major with its fingerings obtained through the overfitted model. We can also see the training loss as it goes to zero (as this model is very easy to overfit, since all notes only ever have one possible fingering in the training data and do not depend on other notes or fingerings).
 ![Overfitted fingerings](./output/overfit_music.png)
 ![Training loss for overfitted data](./output/train_loss_overfit.png)
+
+For these data we use a custom built decoder-only transformer (a version of Andrej Karpathy's implementation in his [GPT from scratch video](https://www.youtube.com/watch?v=kCc8FmEb1nY&ab_channel=AndrejKarpathy), modified to use mlx instead of pytorch) with the following hyperparameters:
+- embedding vector size: 16
+- context length: 16
+- learning rate: 1e-3
+- vocab size (number of different notes): 16
+- training iterations: 200, each with batch size of 64
+- number of transformer blocks: 3
+- number of self attention heads per MultiHeadAttention block: 4
+- no dropout
 
 
 

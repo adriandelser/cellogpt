@@ -8,7 +8,7 @@ vocab_size = 16
 model = MusicFingeringModel(n_head=4, vocab_size=vocab_size)
 model.load_weights('weights.safetensors')
 
-mx.random.seed(1338)
+mx.random.seed(1339)
 
 num_note_groups = 2
 Xin = mx.random.randint(0,16,(num_note_groups, block_size)) #num notes = block_size * num_note_groups
