@@ -7,7 +7,7 @@ from transformer import MusicFingeringModel, block_size
 
 #hyperparameters
 batch_size = 64 # how many independent sequences will we process in parallel?
-max_iters = 200
+max_iters = 100
 learning_rate = 1e-3
 eval_interval = 10
 eval_iters = 200
@@ -45,7 +45,9 @@ def loss_fn(model, X, y:mx.array):
     logits = model(X)
     BT = logits.shape[0]
     targets = y.reshape(BT)
+    # print(X.shape, y.shape, logits.shape)
     loss = nn.losses.cross_entropy(logits, targets)
+    # print(f"{loss.shape=}")
     return mx.mean(loss) 
 
 
@@ -91,10 +93,11 @@ if __name__=='__main__':
     # model.freeze()
     model.save_weights('weights.safetensors')
 
-    import matplotlib.pyplot as plt
-    plt.title("Training loss")
-    plt.ylabel("Loss")
-    plt.xlabel("iteration")
-    plt.plot(train_losses)
-    plt.show()
+
+    # import matplotlib.pyplot as plt
+    # plt.title("Training loss")
+    # plt.ylabel("Loss")
+    # plt.xlabel("iteration")
+    # plt.plot(train_losses)
+    # plt.show()
     

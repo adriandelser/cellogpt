@@ -7,6 +7,8 @@ n_embd = 8
 dropout = 0.2
 # ------------
 
+
+
 class Head(nn.Module):
     """ one head of self-attention """
 
@@ -27,7 +29,6 @@ class Head(nn.Module):
         k = self.key(x)   # (B,T,C) -> (B,T,C//n_heads)
         q = self.query(x) # (B,T,C) -> (B,T,C//n_heads)
         # compute attention scores ("affinities")
-        # wei = q @ k.transpose(-2,-1) * C**-0.5 # (B, T, C) @ (B, C, T) -> (B, T, T)
         #in mlx this is how you would swap the second and third axes
         wei = q @ k.transpose(0,-1,-2) * C**-0.5 # (B, T, C//nh) @ (B, C//nh, T) -> (B, T, T)
 
@@ -37,7 +38,40 @@ class Head(nn.Module):
         wei = self.dropout(wei)
         # perform the weighted aggregation of the values
         v = self.value(x) # (B,T,C//nh)
-        out = wei @ v # (B, T, T) @ (B, T, C) -> (B, T, C//nh)
+        out = wei @ v # (B, T, T) @ (B, T, C//nh) -> (B, T, C//nh)
+        return out
+    
+class CrossAttentionHead(nn.Module):
+    """ one head of self-attention """
+
+    def __init__(self, head_size):
+        super().__init__()
+        self.key = nn.Linear(n_embd, head_size, bias=False)
+        self.query = nn.Linear(n_embd, head_size, bias=False)
+        self.value = nn.Linear(n_embd, head_size, bias=False)
+        self.dropout = nn.Dropout(dropout)
+
+    def __call__(self,x1:mx.array, x2: mx.array):
+        return self.forward(x1, x2)
+
+    def forward(self, x1, x2):
+        '''queries from x1, keys and values from x2'''
+        # input of size (batch, time-step, channels)
+        # output of size (batch, time-step, head size)
+        B,T,C = x2.shape #C is n_embd
+        # NOTE nh = number of heads in the multihead attention block
+        # let's do query from encoder, key and value from decoder 
+        # TODO see what difference other combinations make
+        q = self.query(x1) # (B,T1,C) -> (B,T1,C//n_heads)
+        k = self.key(x2)   # (B,T2,C) -> (B,T2,C//n_heads)
+        v = self.value(x2) # (B,T2,C//nh)
+        # compute attention scores ("affinities")
+        #in mlx this is how you would swap the second and third axes
+        wei = q @ k.transpose(0,-1,-2) * C**-0.5 # (B, T1, C//nh) @ (B, C//nh, T2) -> (B, T1, T2)
+        wei = nn.softmax(wei, axis=-1) # (B, T1, T2)
+        wei = self.dropout(wei)
+        # perform the weighted aggregation of the values
+        out = wei @ v # (B, T1, T2) @ (B, T2, C//nh) -> (B, T1, C//nh)
         return out
 
 class MultiHeadAttention(nn.Module):
@@ -74,6 +108,49 @@ class FeedFoward(nn.Module):
     
     def forward(self, x):
         return self.net(x)
+    
+
+class EncoderBlock(nn.Module):
+    '''Encoder block based on Attention is all you need.
+    NOTE we do layer norm before the attention blocks instead of after'''
+    def __init__(self, n_embd:int, n_head:int=4):
+        # n_embd: embedding dimension, n_head: the number of heads we'd like
+        super().__init__()
+        head_size = n_embd // n_head
+        self.sa = MultiHeadAttention(n_head, head_size)
+        self.ffwd = FeedFoward(n_embd)
+        self.ln1 = nn.LayerNorm(n_embd)
+        self.ln2 = nn.LayerNorm(n_embd)
+    
+    def __call__(self,x:mx.array):
+        return self.forward(x)
+    
+    def forward(self, x:mx.array):
+        x = x + self.sa(self.ln1(x))
+        x = x +self.ffwd(self.ln2(x))
+        return x
+    
+class DecoderBlock(nn.Module):
+    '''Decoder block based on Attention is all you need.
+    NOTE we do layer norm before the attention blocks instead of after'''
+
+    def __init__(self, n_embd:int, n_head:int=4):
+        # n_embd: embedding dimension, n_head: the number of heads we'd like
+        super().__init__()
+        head_size = n_embd // n_head
+        self.sa = MultiHeadAttention(n_head, head_size)
+        self.ffwd = FeedFoward(n_embd)
+        self.ln1 = nn.LayerNorm(n_embd)
+        self.ln2 = nn.LayerNorm(n_embd)
+    
+    def __call__(self,x:mx.array):
+        return self.forward(x)
+    
+    def forward(self, x:mx.array):
+        x = x + self.sa(self.ln1(x))
+        x = x +self.ffwd(self.ln2(x))
+        return x
+
 
 
 class Block(nn.Module):
