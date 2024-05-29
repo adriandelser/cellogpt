@@ -4,7 +4,7 @@ import mlx.core as mx
 # hyperparameters
 block_size = 8 # what is the maximum context length for predictions?
 n_embd = 8
-dropout = 0.2
+dropout = 0.0
 # ------------
 
 
@@ -60,27 +60,27 @@ class CrossAttentionHead(nn.Module):
         # output of size (batch, time-step, head size)
         B,T,C = x2.shape #C is n_embd
         # NOTE nh = number of heads in the multihead attention block
-        # let's do query from encoder, key and value from decoder 
+        # let's do query from decoder, key and value from encoder like in the original paper
         # TODO see what difference other combinations make
-        q = self.query(x1) # (B,T1,C) -> (B,T1,C//n_heads)
-        k = self.key(x2)   # (B,T2,C) -> (B,T2,C//n_heads)
-        v = self.value(x2) # (B,T2,C//nh)
+        # NOTE x1 from encoder, x2 from decoder 
+        k = self.key(x1)   # (B,T1,C) -> (B,T1,C//n_heads)
+        v = self.value(x1) # (B,T1,C//nh)
+        q = self.query(x2) # (B,T2,C) -> (B,T2,C//n_heads)
         # compute attention scores ("affinities")
         #in mlx this is how you would swap the second and third axes
-        wei = q @ k.transpose(0,-1,-2) * C**-0.5 # (B, T1, C//nh) @ (B, C//nh, T2) -> (B, T1, T2)
-        wei = nn.softmax(wei, axis=-1) # (B, T1, T2)
+        wei = q @ k.transpose(0,-1,-2) * C**-0.5 # (B, T2, C//nh) @ (B, C//nh, T1) -> (B, T2, T1)
+        wei = nn.softmax(wei, axis=-1) # (B, T2, T1)
         wei = self.dropout(wei)
         # perform the weighted aggregation of the values
-        out = wei @ v # (B, T1, T2) @ (B, T2, C//nh) -> (B, T1, C//nh)
+        out = wei @ v # (B, T2, T1) @ (B, T1, C//nh) -> (B, T2, C//nh)
         return out
 
-class MultiHeadAttention(nn.Module):
+class MultiHeadSelfAttention(nn.Module):
     '''Multiple heads running in parallel'''
     def __init__(self, num_heads, head_size) -> None:
         super().__init__()
         self.heads = [Head(head_size) for _ in range(num_heads)]
         self.proj = nn.Linear(n_embd, n_embd)
-        #dropout here too maybe?
         self.dropout = nn.Dropout(dropout)
 
     def __call__(self, x:mx.array):
@@ -89,6 +89,23 @@ class MultiHeadAttention(nn.Module):
     def forward(self, x):
         out = mx.concatenate([h(x) for h in self.heads], axis=-1)
         out = self.proj(out)
+        out = self.dropout(out)
+        return out
+    
+class MultiHeadCrossAttention(nn.Module):
+    '''Multiple heads running in parallel'''
+    def __init__(self, num_heads, head_size) -> None:
+        super().__init__()
+        self.heads = [CrossAttentionHead(head_size) for _ in range(num_heads)]
+        self.proj = nn.Linear(n_embd, n_embd)
+        self.dropout = nn.Dropout(dropout)
+
+    def __call__(self, x1:mx.array,x2:mx.array):
+        return self.forward(x1, x2)
+
+    def forward(self, x1, x2):
+        out = mx.concatenate([h(x1,x2) for h in self.heads], axis=-1)
+        out = self.proj(out) # (B, T2, C)
         out = self.dropout(out)
         return out
     
@@ -117,7 +134,7 @@ class EncoderBlock(nn.Module):
         # n_embd: embedding dimension, n_head: the number of heads we'd like
         super().__init__()
         head_size = n_embd // n_head
-        self.sa = MultiHeadAttention(n_head, head_size)
+        self.sa = MultiHeadSelfAttention(n_head, head_size)
         self.ffwd = FeedFoward(n_embd)
         self.ln1 = nn.LayerNorm(n_embd)
         self.ln2 = nn.LayerNorm(n_embd)
@@ -127,7 +144,7 @@ class EncoderBlock(nn.Module):
     
     def forward(self, x:mx.array):
         x = x + self.sa(self.ln1(x))
-        x = x +self.ffwd(self.ln2(x))
+        x = x + self.ffwd(self.ln2(x))
         return x
     
 class DecoderBlock(nn.Module):
@@ -138,56 +155,44 @@ class DecoderBlock(nn.Module):
         # n_embd: embedding dimension, n_head: the number of heads we'd like
         super().__init__()
         head_size = n_embd // n_head
-        self.sa = MultiHeadAttention(n_head, head_size)
+        self.sa = MultiHeadSelfAttention(n_head, head_size)
+        self.ca = MultiHeadCrossAttention(n_head, head_size)
         self.ffwd = FeedFoward(n_embd)
         self.ln1 = nn.LayerNorm(n_embd)
         self.ln2 = nn.LayerNorm(n_embd)
+        self.ln3 = nn.LayerNorm(n_embd)
     
-    def __call__(self,x:mx.array):
-        return self.forward(x)
+    def __call__(self,x1, x2):
+        return self.forward(x1, x2)
     
-    def forward(self, x:mx.array):
-        x = x + self.sa(self.ln1(x))
-        x = x +self.ffwd(self.ln2(x))
+    def forward(self, x1, x2):
+        '''x1 from encoder, x2 from decoder'''
+        x2 = x2 + self.sa(self.ln1(x2))
+        x = x2 + self.ca(self.ln2(x2), x1)
+        # print(f"{x.shape=}")
+        x = x + self.ffwd(self.ln3(x)) # (B,T2,C)
         return x
 
-
-
-class Block(nn.Module):
-    """ Transformer block: communication followed by computation """
-
-    def __init__(self, n_embd, n_head):
-        # n_embd: embedding dimension, n_head: the number of heads we'd like
-        super().__init__()
-        head_size = n_embd // n_head
-        self.sa = MultiHeadAttention(n_head, head_size)
-        self.ffwd = FeedFoward(n_embd)
-        self.ln1 = nn.LayerNorm(n_embd)
-        self.ln2 = nn.LayerNorm(n_embd)
-
-    def __call__(self, x:mx.array):
-        return self.forward(x)
-
-    def forward(self, x): 
-        x = x + self.sa(self.ln1(x))
-        x = x + self.ffwd(self.ln2(x))
-        return x
 
 # super simple model
 class MusicFingeringModel(nn.Module):
 
-    def __init__(self,n_head,vocab_size):
+    def __init__(self, n_head, num_notes, num_fingers):
         super().__init__()
         # each token directly reads off the logits for the next token from a lookup table
-        self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
-        self.position_embedding_table = nn.Embedding(block_size, n_embd) #block size is context length
-        self.blocks = nn.Sequential(
-            Block(n_embd, n_head),
-            Block(n_embd, n_head),
-            Block(n_embd, n_head),
-            nn.LayerNorm(n_embd),
+        self.notes_token_embedding_table = nn.Embedding(num_notes, n_embd)
+        self.notes_position_embedding_table = nn.Embedding(block_size, n_embd) #block size is context length
+        self.fingering_token_embedding_table = nn.Embedding(num_fingers, n_embd)
+        self.fingering_position_embedding_table = nn.Embedding(block_size, n_embd) #block size is context length
+        self.encoder_stack = nn.Sequential(
+            EncoderBlock(n_embd, n_head),
+            EncoderBlock(n_embd, n_head),
+            EncoderBlock(n_embd, n_head),
         )
-        self.lm_head = nn.Linear(n_embd, 5)
+        self.decoder_stack = [DecoderBlock(n_embd, n_head) for _ in range(3)] #three Decoder blocks
+        
+        #no softmax at the output as argmax is sufficient on the output of the linear layer
+        self.lm_head = nn.Sequential(nn.LayerNorm(n_embd), nn.Linear(n_embd, num_fingers)) #where 5 is the vocab size, ie 5 possible fingerings [0,1,2,3,4]
 
     def __call__(self, idx:mx.array):
         return self.forward(idx)
@@ -199,17 +204,35 @@ class MusicFingeringModel(nn.Module):
         T is block size (context length)
         C is n_embd 
         '''
+        # print(f"input is {idx=}")
         B, T = idx.shape
         # idx and targets are both (B,T) tensor of integers #NOTE no more targets
-        tok_emb = self.token_embedding_table(idx) # (B,T,C) where C is n_embd
-        pos_emb = self.position_embedding_table(mx.arange(T)) # (T, C)
-        x = tok_emb + pos_emb # (B,T,C)
-        x = self.blocks(x) 
-        logits = self.lm_head(x) # (B,T,num_fingers = 5)
 
+        notes_emb = self.notes_token_embedding_table(idx) # (B,T1,C) where C is n_embd
+        notes_pos_emb = self.notes_position_embedding_table(mx.arange(T)) # (T1, C)
+
+        fingering_emb = self.fingering_token_embedding_table(idx) # (B,T2,C) where C is n_embd
+        fingering_pos_emb = self.fingering_position_embedding_table(mx.arange(T)) # (T2, C)
+
+        x1 = notes_emb + notes_pos_emb # (B,T1,C)
+        # print(f"{x1.shape=}")
+        x1 = self.encoder_stack(x1) 
+        
+        x2 = fingering_emb + fingering_pos_emb #(B,T2,C)
+        for decoder in self.decoder_stack:
+            x2 = decoder(x1,x2) 
+        
+        # print(f"{x2.shape=}")
+        logits = self.lm_head(x2) # (B,T,num_fingers = 5)
 
         B, T, C = logits.shape
         logits = logits.reshape(B*T, C)
+        # print(f"{logits.shape=}")
+        # print(f"{logits[0]=}")
+        if mx.all(mx.isnan(logits[0])):
+            print(f"{idx=}\n{self.fingering_token_embedding_table(idx)=},\n {self.notes_token_embedding_table(idx)=}")
+            import sys
+            sys.exit()
         return logits
 
     def generate(self, idx, max_new_tokens):

@@ -3,18 +3,19 @@ import mlx.core as mx
 import mlx.nn as nn
 from data import get_data
 import mlx.optimizers
-from transformer import MusicFingeringModel, block_size
+from seq2seq_transformer import MusicFingeringModel, block_size
 
 #hyperparameters
-batch_size = 64 # how many independent sequences will we process in parallel?
-max_iters = 100
+batch_size = 16 # how many independent sequences will we process in parallel?
+max_iters = 200
 learning_rate = 1e-3
-eval_interval = 10
+eval_interval = 20
 eval_iters = 200
 vocab_size = 16 #16 possible notes
 
 
 train_data, val_data = get_data(training_split=0.9)
+
 # data loading
 def get_batch(split):
     # generate a small batch of data of inputs x and targets y
@@ -55,7 +56,7 @@ def loss_fn(model, X, y:mx.array):
 if __name__=='__main__':
     from mlx.utils import tree_flatten
 
-    model = MusicFingeringModel(n_head=4, vocab_size=vocab_size)
+    model = MusicFingeringModel(n_head=4, num_fingers=5, num_notes=16)
     num_params = sum(v.size for _, v in tree_flatten(model.parameters()))
     print(f"{num_params=}")
   
@@ -67,6 +68,8 @@ if __name__=='__main__':
     train_losses = []
     val_losses = []
     for iter in range(max_iters):
+        if iter == 100:
+            learning_rate = 2e-4
         # every once in a while evaluate the loss on train and val sets
         if iter % eval_interval == 0:
             model.freeze()
@@ -92,7 +95,7 @@ if __name__=='__main__':
 
     # # generate from the model
     # model.freeze()
-    model.save_weights('weights.safetensors')
+    model.save_weights('weights_s2s.safetensors')
 
 
     # import matplotlib.pyplot as plt

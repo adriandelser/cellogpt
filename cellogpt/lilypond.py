@@ -1,7 +1,7 @@
 from data import ntof
 from pathlib import Path
 
-def absolute_to_lilypond(notes:list[str],fingerings):
+def absolute_to_lilypond(notes:list[str],fingerings, output_path = 'output/music.ly'):
     """
     Convert absolute music notes to LilyPond relative notation.
 
@@ -50,7 +50,7 @@ def absolute_to_lilypond(notes:list[str],fingerings):
         prev_note=current_note
     # Close the LilyPond notation block
     lilypond_template += "}\n"
-    path = Path('output/music.ly')
+    path = Path(output_path)
     path = path.resolve()
     with open(path, 'w') as file:
         file.write(lilypond_template)
