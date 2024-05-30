@@ -37,7 +37,7 @@ class Head(nn.Module):
         wei = self.dropout(wei)
         # perform the weighted aggregation of the values
         v = self.value(x) # (B,T,C//nh)
-        out = wei @ v # (B, T, T) @ (B, T, C) -> (B, T, C//nh)
+        out = wei @ v # (B, T, T) @ (B, T, C//nh) -> (B, T, C//nh)
         return out
 
 class MultiHeadAttention(nn.Module):
