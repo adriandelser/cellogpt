@@ -32,6 +32,7 @@ def get_batch(split):
 # @torch.no_grad() #does this exist in mlx?
 def estimate_loss(model:nn.Module):
     out = {}
+    model.freeze() # equivalent to @torch.no_grad?
     model.eval()
     for split in ['train', 'val']:
         losses = mx.zeros(eval_iters)
@@ -43,6 +44,7 @@ def estimate_loss(model:nn.Module):
             losses[k] = loss.item()
         out[split] = losses.mean()
     model.train()
+    model.unfreeze()
     return out
 
 i = 0
@@ -81,14 +83,12 @@ if __name__=='__main__':
         for iter in range(max_iters):
             # every once in a while evaluate the loss on train and val sets
             if iter % eval_interval == 0:
-                model.freeze()
                 losses = estimate_loss(model)
                 train_loss = losses['train'].item()
                 val_loss = losses['val'].item()
                 train_losses.append(train_loss)
                 val_losses.append(val_loss)
                 print(f"step {iter}: train loss {train_loss:.4f}, val loss {val_loss:.4f}")
-                model.unfreeze()
 
             # sample a batch of data
             xb, yb = get_batch('train')

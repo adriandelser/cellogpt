@@ -9,9 +9,9 @@ start_token = 5
 
 print(f"{block_size=}")
 
-model = MusicFingeringModel(n_head=4, num_notes=16, num_fingers=5).train(False)
+model = MusicFingeringModel(n_head=4, num_notes=16, num_fingers=5)
 model.load_weights('weights_s2s.safetensors')
-model.freeze()
+model.eval()
 # mx.random.seed(1339)
 
 num_notes = block_size
