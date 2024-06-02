@@ -3,19 +3,18 @@ import mlx.core as mx
 import mlx.nn as nn
 from data import get_data
 import mlx.optimizers
-from seq2seq_transformer import MusicFingeringModel, block_size
+from transformer import MusicFingeringModel, block_size
 
 #hyperparameters
-batch_size = 16 # how many independent sequences will we process in parallel?
-max_iters = 200
+batch_size = 64 # how many independent sequences will we process in parallel?
+max_iters = 201
 learning_rate = 1e-3
-eval_interval = 20
+eval_interval = 10
 eval_iters = 200
 vocab_size = 16 #16 possible notes
 
 
 train_data, val_data = get_data(training_split=0.9)
-
 # data loading
 def get_batch(split):
     # generate a small batch of data of inputs x and targets y
@@ -56,7 +55,7 @@ def loss_fn(model, X, y:mx.array):
 if __name__=='__main__':
     from mlx.utils import tree_flatten
 
-    model = MusicFingeringModel(n_head=4, num_fingers=5, num_notes=16)
+    model = MusicFingeringModel(n_head=4, vocab_size=vocab_size)
     num_params = sum(v.size for _, v in tree_flatten(model.parameters()))
     print(f"{num_params=}")
   
@@ -68,8 +67,6 @@ if __name__=='__main__':
     train_losses = []
     val_losses = []
     for iter in range(max_iters):
-        if iter == 100:
-            learning_rate = 2e-4
         # every once in a while evaluate the loss on train and val sets
         if iter % eval_interval == 0:
             model.freeze()
@@ -84,7 +81,7 @@ if __name__=='__main__':
         # sample a batch of data
         xb, yb = get_batch('train')
         # evaluate the loss
-        logits = model(xb)
+        # logits = model(xb)
 
         loss, grads = loss_and_grad_fn(model, xb, yb)
         # Update the model with the gradients. So far no computation has happened.
@@ -95,13 +92,15 @@ if __name__=='__main__':
 
     # # generate from the model
     # model.freeze()
-    model.save_weights('weights_s2s.safetensors')
+    model.save_weights('weights.safetensors')
 
 
-    # import matplotlib.pyplot as plt
-    # plt.title("Training loss")
-    # plt.ylabel("Loss")
-    # plt.xlabel("iteration")
-    # plt.plot(train_losses)
-    # plt.show()
-    
+    import matplotlib.pyplot as plt
+    iterations = range(0, max_iters, eval_interval)
+    plt.title("Training and Validation Loss")
+    plt.ylabel("Loss")
+    plt.xlabel("Iteration")
+    plt.plot(iterations, train_losses, label='Training Loss')
+    plt.plot(iterations, val_losses, label='Validation Loss')
+    plt.legend()
+    plt.show()

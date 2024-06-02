@@ -1,26 +1,33 @@
 '''run: make inference'''
 
 import mlx.core as mx
-from transformer import MusicFingeringModel, block_size
-from data import iton
+from cellogpt.transformer import MusicFingeringModel, block_size
+from data import iton, itof
+import sys
 vocab_size = 16
+start_token = 5
 
-model = MusicFingeringModel(n_head=4, vocab_size=vocab_size)
-model.load_weights('weights.safetensors')
+print(f"{block_size=}")
 
-mx.random.seed(1339)
+model = MusicFingeringModel(n_head=4, num_notes=16, num_fingers=5).train(False)
+model.load_weights('weights_s2s.safetensors')
+model.freeze()
+# mx.random.seed(1339)
 
-num_note_groups = 2
-Xin = mx.random.randint(0,16,(num_note_groups, block_size)) #num notes = block_size * num_note_groups
-logits = model(Xin)
-print(f"{logits.shape=}")
-print(logits.tolist())
-input_notes = [iton[i.item()] for i in mx.flatten(Xin)]
+num_notes = block_size
+notes = mx.random.randint(0,16,(num_notes,)) #num notes = block_size * num_note_groups
+#encoder input is first block of notes with extra dimension for compatibility 
+encoder_Xin = notes[:block_size][None] 
+fingerings = model.generate_fingerings(encoder_Xin, start_token, max_length = block_size)
+
+input_notes = [iton[i.item()] for i in notes]
+
 print(f"number of notes = {len(input_notes)}")
-fingerings = logits.argmax(axis=1).tolist()
+# fingerings = logits.argmax(axis=1).tolist()
 print(f"Input notes:{input_notes}")
 print(f"fingerings: {fingerings}")
 
-#write to lilypond file
+# #write to lilypond file
 from lilypond import absolute_to_lilypond
-lilypond_output = absolute_to_lilypond(input_notes, fingerings)
+lilypond_output = absolute_to_lilypond(input_notes, fingerings,output_path='output/music.ly')
+
