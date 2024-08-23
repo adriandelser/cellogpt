@@ -5,11 +5,11 @@
 
 ## Project Overview
 
-This project aims to generate fingerings for cello music (ie which fingers to use to play each note on the sheet music) using sequence-to-sequence (seq2seq) transformers (Vaswani et al., [2017](https://doi.org/10.1109/MCI.2018.2840738)).
+This project aims to generate fingerings for cello music (ie which fingers to use to play each note on the sheet music) using sequence-to-sequence (seq2seq) transformers ([Vaswani et al., 2017](https://arxiv.org/abs/1706.03762)).
 . The goal is to apply the architecture of seq2seq transformers, "translating" from music notes to fingerings instead of translating one language to another. 
 
 This project was motivated by not being able to find adequate fingerings for my sheet music, needing to watch slow motion video of online performances to decipher how to play certain sections. It is also a good opportunity to improve my knowledge of Apple's mlx library. 
-I started this project on 24/05/2024. It is on github to keep track of progress and for any suggestions from the community :) 
+I started this project on 24/05/2024. It is on github to keep track of progress and for any suggestions from the community. 
 
 ## Previous Work
 Previous research on this topic exists, mostly for piano music (the task of generating fingerings for piano music is referred to Automatic Piano Fingering, or APF). It has shown that sequence-to-sequence transformers (along with other learning-based methods) can be useful for this task. 

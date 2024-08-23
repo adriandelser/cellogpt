@@ -1,7 +1,7 @@
 import mlx
 import mlx.core as mx
 import mlx.nn as nn
-from data import get_data, get_data_extra
+from cellogpt.data import get_data, get_data_extra
 import mlx.optimizers
 from cellogpt.transformer import MusicFingeringModel, block_size
 
@@ -56,12 +56,16 @@ def loss_fn(model, X, Y:mx.array):
     Y[...,1:] = Y[...,:-1]
     Y[...,0] = start_token
     logits = model(X, Y)
+    # print(logits.shape)
+    # print(logits.dtype, targets.dtype)
+    # print(logits.shape, targets.shape)
     # print(logits.shape,y.shape, targets.shape)
     # print(X.shape, y.shape, logits.shape)
     loss = nn.losses.cross_entropy(logits, targets)
     # print(f"{i}\n{logits=}\n{targets=}\n#########################")
     i+=1
     # print(f"{loss.shape=}")
+    print(mx.mean(loss))
     return mx.mean(loss) 
 
 
